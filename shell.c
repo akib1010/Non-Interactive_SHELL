@@ -7,8 +7,12 @@
 #include <fcntl.h>
 
 #define MAX_CHAR 100//Maximum characters of a single command line
-
-//
+int firstProcess=1;
+int lastProcess=0;
+int* allFd[2];
+//Keeps track of how many pipes are in the command
+int pipeNum=0;
+//This function process a line which does not have pipes
 int processLine(char** args,int size)
 {
     int ret=0;//return value
@@ -33,7 +37,7 @@ int processLine(char** args,int size)
     {
         //transform the process
         execvp(myArgs[0],myArgs);
-        //This lines of code should not be executed in exec() is successful
+        //This lines of code should not be executed if exec() is successful
         printf("\nexecvp() failed\n");
         ret=1;
         
@@ -46,6 +50,89 @@ int processLine(char** args,int size)
     return ret;
 }
 
+//This function runs a segment of a piped command
+void pipeProcess(char** args,int size)
+{
+    //Dynamically allocate the argumets into an array
+    char* myArgs[size];
+    int i;
+    for(i=0;i<size;i++)
+    {
+        myArgs[i]=strdup(args[i]);
+    }
+    //Add NULL to the end of the line
+    myArgs[size]=NULL;
+    
+    int fd[2];
+    int rc;
+    if(pipe(fd)<0)
+    {
+        printf("\nPipe Error\n");
+    }
+    //Create a new process
+    rc=fork();
+    //If fork() fails
+    if(rc<0)
+    {
+        printf("Fork Failed!");
+    }
+    //Child process
+    else if(rc==0)
+    {
+        //If it is the first process
+        if(firstProcess)
+        {
+            allFd[0][1]=fd[1];
+            allFd[0][0]=fd[0];
+            firstProcess=0;
+            //close read end
+            close(fd[0]);
+            //swap the file descriptor with Standard output
+            dup2(fd[1],STDOUT_FILENO);
+            close(fd[1]);
+            //execute the process
+            execvp(myArgs[0],myArgs);
+            //This lines of code should not be executed if exec() is successful
+            printf("\nexecvp() failed\n");
+        }
+        //if it is the last process
+        if(lastProcess)
+        {
+            allFd[pipeNum][1]=fd[1];
+            allFd[pipeNum][0]=fd[0];
+            //close the pipe
+            close(fd[1]);
+            close(fd[0]);
+            //read from the fd of the last process
+            dup2(allFd[pipeNum-1][0],STDIN_FILENO);
+            close(allFd[pipeNum-1][0]);
+            //Execute the process
+            execvp(myArgs[0],myArgs);
+            //This lines of code should not be executed if exec() is successful
+            printf("\nexecvp() failed\n");
+        }
+        allFd[pipeNum-1][1]=fd[1];
+        allFd[pipeNum-1][0]=fd[0];
+        //If the process is in the middle
+        //swap file descriptors for input and output
+        dup2(allFd[pipeNum-2][0],STDIN_FILENO);
+        dup2(fd[1],STDOUT_FILENO);
+        close(fd[0]);
+        close(fd[1]);
+        //Execute the process
+        execvp(myArgs[0],myArgs);
+        //This lines of code should not be executed if exec() is successful
+        printf("\nexecvp() failed\n");
+    }
+    //parent process
+    else
+    {
+        wait(NULL);
+    }
+    
+}
+
+
 //This function parses the command line string and passes the commands to be processed
 void parseLine(char* line)
 {
@@ -54,8 +141,6 @@ void parseLine(char* line)
     char* temp;
     int fd;
     int count=0;
-    //Variables that keep track if redirection or pipes are in the command line arguments
-    int pipe=0;
     //Split by whitespace
     token=strtok(line," ");
     while(token!=NULL)
@@ -87,8 +172,11 @@ void parseLine(char* line)
         //If the command is a pipe
         else if(strcmp(token,"|")==0)
         {
-            //TBC//////////
-            pipe++;
+            //Indicate that this command has pipes and run the process that has been read so far
+            pipeNum++;
+            pipeProcess(args,count);
+            //Reinitialize count so that the array can be reset
+            count=0;
         }
         else
         {
@@ -102,10 +190,19 @@ void parseLine(char* line)
     {
         args[count-1][strlen(args[count-1])-1]='\0';
     }
-    //Process the line, if it fails give an error message
-    if(processLine(args,count)==1)
+    if(pipeNum==0)
     {
-        printf("\nProcessing line %s ... %s Failed\n",args[0],args[count-1]);
+        //Process the line normally, if it fails give an error message
+        if(processLine(args,count)==1)
+        {
+            printf("\nProcessing line %s ... %s Failed\n",args[0],args[count-1]);
+        }
+    }
+    else
+    {
+        //This is the lastprocess of a piped command
+        lastProcess=1;
+        pipeProcess(args,count);
     }
 }
 
