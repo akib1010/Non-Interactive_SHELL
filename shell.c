@@ -1,3 +1,11 @@
+//-------------------------------------
+//Name: Farhan Akib Rahman
+//Student Number:7854163
+//Course: Comp3439
+//Assignment: 2 , Question:1
+//
+//Remarks:Implement a non-interactive shell that can use redirection and pipes
+//-------------------------------------
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -87,9 +95,12 @@ void pipeProcess(char** args,int size)
             firstProcess=0;
             //close read end
             close(fd[0]);
-            //swap the file descriptor with Standard output
-            dup2(fd[1],STDOUT_FILENO);
-            close(fd[1]);
+            if(fd[1]!=STDOUT_FILENO)
+            {
+                //swap the file descriptor with Standard output
+                dup2(fd[1],STDOUT_FILENO);
+                close(fd[1]);
+            }
             //execute the process
             execvp(myArgs[0],myArgs);
             //This lines of code should not be executed if exec() is successful
@@ -103,9 +114,10 @@ void pipeProcess(char** args,int size)
             //close the pipe
             close(fd[1]);
             close(fd[0]);
-            //read from the fd of the last process
-            dup2(allFd[pipeNum-1][0],STDIN_FILENO);
-            close(allFd[pipeNum-1][0]);
+            if(allFd[pipeNum-1][0]!=STDIN_FILENO)
+            {
+                dup2(allFd[pipeNum-1][0],STDIN_FILENO);
+            }
             //Execute the process
             execvp(myArgs[0],myArgs);
             //This lines of code should not be executed if exec() is successful
