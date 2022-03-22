@@ -1,5 +1,5 @@
-# Assignment 2 [Non-Interactive_SHELL]
- Implementing a non-interactive shell with pipes and redirection support 
+# [Non-Interactive_SHELL]
+ Implementing a non-interactive shell with redirection support 
  
  ## Running the program  
  * type 'make' to compile the program
@@ -8,4 +8,3 @@
  
  
  
- ## My program cannot run the pipes properly but the first 3 lines of the script file works smoothly
